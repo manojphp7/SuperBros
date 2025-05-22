@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "681386753309",
+    "project_id": "superbros-cc6ea",
+    "storage_bucket": "superbros-cc6ea.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:681386753309:android:336b718321592e12f135f4",
+        "android_client_info": {
+          "package_name": "com.superbrostop.uk"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDuMRFyO5bAQl35DwPBuC67k6nYiw4k7ow"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
