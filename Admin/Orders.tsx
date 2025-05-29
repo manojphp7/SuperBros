@@ -22,24 +22,30 @@ import {
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../helpers/navigation";
 import OrderDetailBox from "./OrderDetailBox";
+import { SafeAreaView } from "react-native-safe-area-context";
+import ASidebar from "./ASidebar";
+import { useCart } from "../context/CartContext";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 const { width } = Dimensions.get("window");
 
-
 interface OrdersProps {
-  newOrderID?: string|null;
-  afterAdded?:() => void
+  newOrderID?: string | null;
+  afterAdded?: () => void;
 }
 
-const Orders: React.FC<OrdersProps> = ({ newOrderID ,afterAdded }) => {
+const Orders: React.FC<OrdersProps> = ({ newOrderID, afterAdded }) => {
   const [orders, setOrders] = useState<any[]>([]);
   const [limit] = useState(10);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
-  
+  const { newAdminOrders, setNewAdminOrdersFn } = useCart();
+  const [isSidebarOpen, setSidebarOpen] = useState(false);
+  const toggleSidebar = () => {
+    setSidebarOpen((prev) => !prev);
+  };
 
   const navigation = useNavigation<NavigationProp>();
   const blinkAnim = useRef(new Animated.Value(1)).current;
@@ -60,9 +66,6 @@ const Orders: React.FC<OrdersProps> = ({ newOrderID ,afterAdded }) => {
       ])
     ).start();
   }, []);
-
-
-
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -85,8 +88,6 @@ const Orders: React.FC<OrdersProps> = ({ newOrderID ,afterAdded }) => {
   useEffect(() => {
     fetchOrders();
   }, [offset]);
-
-  
 
   const handleNextPage = () => {
     if (offset + limit < total) {
@@ -127,7 +128,7 @@ const Orders: React.FC<OrdersProps> = ({ newOrderID ,afterAdded }) => {
       }
       return prevOrders; // Temporary return — actual fetch is outside
     });
-  
+
     try {
       const response = await axios.get(`${BaseUrl}user/admin_order_detail`, {
         params: {
@@ -135,111 +136,127 @@ const Orders: React.FC<OrdersProps> = ({ newOrderID ,afterAdded }) => {
           orderID: newOrderID,
         },
       });
-  
+
       const newOrder = response.data;
-  
+
       if (newOrder) {
         setOrders((prevOrders) => [newOrder, ...prevOrders]);
         setTotal((prevTotal) => prevTotal + 1);
       }
 
-      if(afterAdded){
-        afterAdded()
+      if (afterAdded) {
+        afterAdded();
       }
-      
     } catch (error) {
       console.error("Failed to fetch new order:", error);
     }
   };
 
-
   useEffect(() => {
-    if (newOrderID) {
-      addNewOrderToTop(newOrderID);
+    if (newAdminOrders.length > 0) {
+      const newOrderID = newAdminOrders[newAdminOrders.length - 1];
+      if (newOrderID !== "") {
+        addNewOrderToTop(newOrderID);
+        setNewAdminOrdersFn(""); //reset newAdminOrders array
+      }
     }
-  }, [newOrderID]);
+  }, [newAdminOrders]);
 
   return (
-    <View>
-      {loading ? (
-        <ActivityIndicator size="large" color="#FC8019" />
-      ) : (
-        <>
+    <SafeAreaView style={{ flex: 1 }} edges={["top", "left", "right"]}>
+      <View style={{ flex: 1 }}>
+        {/* Header */}
+        <ASidebar
+          isOpen={isSidebarOpen}
+          toggleSidebar={toggleSidebar}
+          title="Orders"
+        />
+        <View>
+          {loading ? (
+            <View style={{ marginTop: 20 }}>
+              <ActivityIndicator size="large" color="#FC8019" />
+            </View>
+          ) : (
+            <>
+              <FlatList
+                data={orders}
+                keyExtractor={(item: any) => item.id.toString()}
+                contentContainerStyle={{ paddingBottom: 100 }}
+                renderItem={({ item }) => {
+                  const isAwaiting = item.status?.toLowerCase() === "awaiting";
+                  const CardWrapper = isAwaiting ? Animated.View : View;
 
-          <FlatList
-            data={orders}
-            keyExtractor={(item: any) => item.id.toString()}
-            contentContainerStyle={{ paddingBottom: 100 }}
-            renderItem={({ item }) => {
-              const isAwaiting = item.status?.toLowerCase() === "awaiting";
-              const CardWrapper = isAwaiting ? Animated.View : View;
+                  return (
+                    <CardWrapper
+                      style={[
+                        styles.orderCard,
+                        isAwaiting && { opacity: blinkAnim },
+                      ]}
+                    >
+                      <View style={styles.orderInfoContainer}>
+                        <View style={styles.orderTextContainer}>
+                          <Text style={styles.orderId}>Order #{item.id}</Text>
+                          <Text style={styles.orderAmount}>
+                            Total: {formatCurrency(item.amount)}
+                          </Text>
+                          <Text style={styles.orderInfo}>
+                            Status: {item.status}
+                          </Text>
+                          <Text style={styles.orderInfo}>
+                            Date: {item.movement}
+                          </Text>
+                        </View>
 
-              return (
-                <CardWrapper
+                        <TouchableOpacity
+                          style={styles.viewButton}
+                          onPress={() => handleViewDetails(item)}
+                        >
+                          <Text style={styles.viewButtonText}>View</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </CardWrapper>
+                  );
+                }}
+              />
+
+              <View style={styles.pagination}>
+                <TouchableOpacity
+                  onPress={handlePreviousPage}
+                  disabled={offset === 0}
                   style={[
-                    styles.orderCard,
-                    isAwaiting && { opacity: blinkAnim },
+                    styles.pageButton,
+                    offset === 0 && styles.disabledButton,
                   ]}
                 >
-                  <View style={styles.orderInfoContainer}>
-                    <View style={styles.orderTextContainer}>
-                      <Text style={styles.orderId}>Order #{item.id}</Text>
-                      <Text style={styles.orderAmount}>
-                        Total: {formatCurrency(item.amount)}
-                      </Text>
-                      <Text style={styles.orderInfo}>
-                        Status: {item.status}
-                      </Text>
-                      <Text style={styles.orderInfo}>
-                        Date: {item.movement}
-                      </Text>
-                    </View>
+                  <Text style={styles.pageButtonText}>Previous</Text>
+                </TouchableOpacity>
+                <Text style={styles.pageInfo}>
+                  Showing {offset + 1} to {Math.min(offset + limit, total)} of{" "}
+                  {total}
+                </Text>
+                <TouchableOpacity
+                  onPress={handleNextPage}
+                  disabled={offset + limit >= total}
+                  style={[
+                    styles.pageButton,
+                    offset + limit >= total && styles.disabledButton,
+                  ]}
+                >
+                  <Text style={styles.pageButtonText}>Next</Text>
+                </TouchableOpacity>
+              </View>
 
-                    <TouchableOpacity
-                      style={styles.viewButton}
-                      onPress={() => handleViewDetails(item)}
-                    >
-                      <Text style={styles.viewButtonText}>View</Text>
-                    </TouchableOpacity>
-                  </View>
-                </CardWrapper>
-              );
-            }}
-          />
-
-          <View style={styles.pagination}>
-            <TouchableOpacity
-              onPress={handlePreviousPage}
-              disabled={offset === 0}
-              style={[styles.pageButton, offset === 0 && styles.disabledButton]}
-            >
-              <Text style={styles.pageButtonText}>Previous</Text>
-            </TouchableOpacity>
-            <Text style={styles.pageInfo}>
-              Showing {offset + 1} to {Math.min(offset + limit, total)} of{" "}
-              {total}
-            </Text>
-            <TouchableOpacity
-              onPress={handleNextPage}
-              disabled={offset + limit >= total}
-              style={[
-                styles.pageButton,
-                offset + limit >= total && styles.disabledButton,
-              ]}
-            >
-              <Text style={styles.pageButtonText}>Next</Text>
-            </TouchableOpacity>
-          </View>
-
-          <OrderDetailBox
-            visible={!!selectedOrder}
-            order={selectedOrder}
-            onClose={closeModal}
-            onStatusUpdate={handleStatusUpdate}
-          />
-        </>
-      )}
-    </View>
+              <OrderDetailBox
+                visible={!!selectedOrder}
+                order={selectedOrder}
+                onClose={closeModal}
+                onStatusUpdate={handleStatusUpdate}
+              />
+            </>
+          )}
+        </View>
+      </View>
+    </SafeAreaView>
   );
 };
 

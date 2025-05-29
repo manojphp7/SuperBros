@@ -9,69 +9,123 @@ import {
 } from "react-native";
 import axios from "axios";
 import { AdminEuid, BaseUrl } from "../helpers/helpers";
+import { SafeAreaView } from "react-native-safe-area-context";
+import ASidebar from "./ASidebar";
 
-type Props = {
-  onSelect: (id: string) => void;
-};
+const Settings = () => {
+  const [isOpenRestaurant, setIsOpenRestaurant] = useState<boolean>(true);
+  const [isOpenCod, setIsOpenCod] = useState<boolean>(true);
+  const [restaurantLoading, setRestaurantLoading] = useState(true);
+  const [codLoading, setCodLoading] = useState(true);
+  const [isSidebarOpen, setSidebarOpen] = useState(false);
+  const toggleSidebar = () => {
+    setSidebarOpen((prev) => !prev);
+  };
 
-const Settings: React.FC<Props> = ({ onSelect }) => {
-  const [isOpen, setIsOpen] = useState<boolean>(true);
-  const [loading, setLoading] = useState(false);
-
-  const fetchRestaurantStatus = async () => {
+  const settings = async () => {
     try {
-      const res = await axios.get(`${BaseUrl}user/restaurantStatus`, {
+      const res = await axios.get(`${BaseUrl}user/settings`, {
         params: {
           euid: AdminEuid,
         },
       });
-      setIsOpen(res.data.status === "Open");
+
+        setIsOpenRestaurant(res.data["restaurant"] === "Open");
+        setIsOpenCod(res.data["cod"] === "Open");
+
     } catch (error) {
       console.error("Failed to fetch status", error);
+    } finally {
+      setRestaurantLoading(false);
+      setCodLoading(false);
     }
   };
 
-  const toggleRestaurantStatus = async () => {
-    const newStatus = isOpen ? "Close" : "Open";
-    setLoading(true);
+  const updateSettings = async (ki: string, value: boolean) => {
+    const newStatus = value ? "Open" : "Close";
+
+    if (ki === "cod") {
+      setCodLoading(true);
+    }
+
+    if (ki === "restaurant") {
+      setRestaurantLoading(true);
+    }
+
     try {
-      await axios.post(`${BaseUrl}user/restaurantStatus`, {
+      const response = await axios.post(`${BaseUrl}user/settings`, {
         euid: AdminEuid,
-        newStatus: newStatus,
+        ki: ki,
+        value: newStatus,
       });
-      setIsOpen(!isOpen);
-      Alert.alert("Success", `Restaurant is now ${newStatus}`);
     } catch (error) {
       Alert.alert("Error", "Failed to update status");
       console.error(error);
+    } finally {
+      if (ki === "cod") {
+        setCodLoading(false);
+        setIsOpenCod(value);
+      }
+      if (ki === "restaurant") {
+        setIsOpenRestaurant(value);
+        setRestaurantLoading(false);
+      }
     }
-    setLoading(false);
   };
 
   useEffect(() => {
-    fetchRestaurantStatus();
+    settings();
   }, []);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.heading}>Restaurant Status</Text>
-      <View style={styles.toggleContainer}>
-        <Text style={styles.statusText}>{isOpen ? "Open" : "Closed"}</Text>
-        <Switch
-          value={isOpen}
-          onValueChange={toggleRestaurantStatus}
-          disabled={loading}
-          trackColor={{ false: "#767577", true: "#767577" }}
-          thumbColor={isOpen ? "#10d431" : "#f4f3f4"}
+    <SafeAreaView style={{ flex: 1 }} edges={["top", "left", "right"]}>
+      <View style={{ flex: 1 }}>
+        {/* Header */}
+        <ASidebar
+          isOpen={isSidebarOpen}
+          toggleSidebar={toggleSidebar}
+          title="Settings"
         />
-      </View>
-
-      {loading && (
-        <View style={styles.loadingOverlay} pointerEvents="auto">
-          <ActivityIndicator size="large" color="#FC8019" />
+        <View style={styles.container}>
+          <View style={styles.toggleContainer}>
+            <View style={styles.row}>
+              <Text style={styles.statusText}>
+                Restaurant is {isOpenRestaurant ? "Opened" : "Closed"}
+              </Text>
+              {restaurantLoading ? (
+                <ActivityIndicator size="small" color="#FC8019" />
+              ) : (
+                <Switch
+                  value={isOpenRestaurant}
+                  onValueChange={() =>
+                    updateSettings("restaurant", !isOpenRestaurant)
+                  }
+                  disabled={restaurantLoading}
+                  trackColor={{ false: "#767577", true: "#767577" }}
+                  thumbColor={isOpenRestaurant ? "#10d431" : "#f4f3f4"}
+                />
+              )}
+            </View>
+            <View style={styles.row}>
+              <Text style={styles.statusText}>
+                COD is {isOpenCod ? "Opened" : "Closed"}
+              </Text>
+              {codLoading ? (
+                <ActivityIndicator size="small" color="#FC8019" />
+              ) : (
+                <Switch
+                  value={isOpenCod}
+                  onValueChange={() => updateSettings("cod", !isOpenCod)}
+                  disabled={codLoading}
+                  trackColor={{ false: "#767577", true: "#767577" }}
+                  thumbColor={isOpenCod ? "#10d431" : "#f4f3f4"}
+                />
+              )}
+            </View>
+          </View>
         </View>
-      )}
-    </View>
+      </View>
+    </SafeAreaView>
   );
 };
 
@@ -98,9 +152,17 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   toggleContainer: {
-    flexDirection: "row",
+    flexDirection: "column", // changed from "row"
+    gap: 20, // optional spacing between rows
+  },
+  row: {
+    flexDirection: "row", // lays out text and switch side by side
     justifyContent: "space-between",
     alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 5,
+    backgroundColor: "#f8f8f8",
+    borderRadius: 8,
   },
   statusText: {
     fontSize: 16,

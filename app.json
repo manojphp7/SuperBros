@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "superbros",
+    "name": "SuperBros",
     "slug": "superbros",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -31,6 +31,9 @@
       "eas": {
         "projectId": "763837f9-3745-43d3-be36-b8cf8e8c8065"
       }
-    }
+    },
+    "plugins": [
+      "expo-audio"
+    ]
   }
 }

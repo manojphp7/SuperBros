@@ -13,83 +13,93 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "./helpers/navigation";
 import axios from "axios";
-import { AdminEuid, BaseUrl } from "./helpers/helpers";
+import { AdminEuid, BaseUrl, SOCKET_URL, UserRoles } from "./helpers/helpers";
 import { useCart } from "./context/CartContext";
-import {
-  Pusher,
-  PusherMember,
-  PusherChannel,
-  PusherEvent,
-} from '@pusher/pusher-websocket-react-native';
+import { io, Socket } from "socket.io-client";
+import { DefaultEventsMap } from "@socket.io/component-emitter";
+
+type MySocket = Socket<DefaultEventsMap, DefaultEventsMap>;
 
 const EnterMobile = () => {
   const [mobile, setMobile] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const { loginUser } = useCart();
-
-
-  
-  
+  const { loginUser, handleSocket, setDeliveryAddressfn, setUserRoleFn } =
+    useCart();
+  const [initLoading, setInitLoading] = useState(true);
 
   type NavigationProp = NativeStackNavigationProp<RootStackParamList, "Home">;
   const navigation = useNavigation<NavigationProp>();
   const countryCode = "+44";
   const countryFlag = "🇬🇧";
-  
-  
-  const createPusherConnection = async (userId: string) => {
-    const pusher = Pusher.getInstance();
-  
-    await pusher.init({
-      apiKey: 'f6a5c679b19514b87892',
-      cluster: 'us3',
-      authEndpoint: '', // optional: for private channel auth
-    });
-  
-    await pusher.connect();
-  
-    const channelName = `private-user-${userId}`; // personalize the channel
-  
-    await pusher.subscribe({
-      channelName,
-      onEvent: (event: PusherEvent) => {
-        console.log('🔔 Event received:');
-        console.log('Event name:', event.eventName);
-        console.log('Data:', event.data);
-      },
-    });
-  
-    console.log(`✅ Subscribed to ${channelName}`);
-  };
-  
 
+  const checkIfLoggedIn = async () => {
+    try {
+      const euid = await AsyncStorage.getItem("euid");
+      const role = await AsyncStorage.getItem("role");
+      const formatted = await AsyncStorage.getItem("formatted");
+      if (euid && role) {
+        loginUser(euid);
+        setUserRoleFn(role);
+        /******SOCKET CODE************ */
 
+        const socket: MySocket = io(SOCKET_URL, {
+          transports: ["websocket"], // Required for React Native
+        });
 
+        socket.on("connect", () => {
+          console.log("✅ Connected to server");
+        });
 
-  useEffect(() => {
-    const checkIfLoggedIn = async () => {
-      try {
-        const euid = await AsyncStorage.getItem("euid");
-        if (euid) {
-          await loginUser(euid);
+        if (socket) {
+          socket.emit("register", euid);
+          handleSocket(socket);
+          console.log("📤 Registered user:", euid);
+        }
+        /******END SOCKET CODE************ */
 
-          if (euid === AdminEuid) {
-            navigation.reset({
-              index: 0,
-              routes: [{ name: "AdminScreen" as never }],
-            });
-          } else {
+        if (role === UserRoles.ADMIN) {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "Dashboard" as never }],
+          });
+          return;
+        }
+
+        if (role === UserRoles.DELIVERY_BOY) {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "MyDeliveries" as never }],
+          });
+        } else {
+          // const formatted = await AsyncStorage.getItem("formatted");
+          if (formatted) {
+            setDeliveryAddressfn(formatted);
             navigation.reset({
               index: 0,
               routes: [{ name: "Home" as never }],
             });
+          } else {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: "AddressForm" as never }],
+            });
           }
         }
-      } catch (err) {
-        console.error("Auto-login failed", err);
+      } else {
+        setInitLoading(false);
       }
-    };
+    } catch (err) {
+      console.error("Auto-login failed", err);
+    }
+  };
 
+  // const logout = async () =>{
+  //   await AsyncStorage.setItem("euid","");
+  //   await AsyncStorage.setItem("role","");
+  //   await AsyncStorage.setItem("formatted","");
+  // }
+  useEffect(() => {
+    // logout()
     checkIfLoggedIn();
     //createPusherConnection('9570dc6958fc6068e6922875da192208');
   }, []);
@@ -127,35 +137,47 @@ const EnterMobile = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.inputRow}>
-        <Text style={styles.countryCode}>
-          {countryFlag} {countryCode}
-        </Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter 10-digit number"
-          keyboardType="number-pad"
-          maxLength={10}
-          value={mobile}
-          onChangeText={handleTextChange}
-        />
-      </View>
-
-      <View style={styles.buttonWrapper}>
-        <TouchableOpacity
-          style={[styles.button, isSending && { opacity: 0.5 }]}
-          onPress={handleSendOtp}
-          disabled={isSending}
+    <>
+      {initLoading ? (
+        <View
+          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
         >
-          {isSending ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Send OTP</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-    </View>
+          <ActivityIndicator size="large" color="#FF7043" />
+        </View>
+      ) : (
+        <>
+          <View style={styles.container}>
+            <View style={styles.inputRow}>
+              <Text style={styles.countryCode}>
+                {countryFlag} {countryCode}
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter 10-digit number"
+                keyboardType="number-pad"
+                maxLength={10}
+                value={mobile}
+                onChangeText={handleTextChange}
+              />
+            </View>
+
+            <View style={styles.buttonWrapper}>
+              <TouchableOpacity
+                style={[styles.button, isSending && { opacity: 0.5 }]}
+                onPress={handleSendOtp}
+                disabled={isSending}
+              >
+                {isSending ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.buttonText}>Send OTP</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </>
+      )}
+    </>
   );
 };
 

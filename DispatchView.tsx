@@ -15,7 +15,7 @@ const DispatchView = ({orderObj} :any ) => (
         />
         <Text style={styles.dispatchHeading}>Your order is on the way!</Text>
         <Text style={styles.dispatchAddressLabel}>Delivering to:</Text>
-        <Text style={styles.dispatchAddress}>{orderObj.address}</Text>
+        <Text style={styles.dispatchAddress}>{orderObj?.address}</Text>
       </View>
     </ImageBackground>
   </View>

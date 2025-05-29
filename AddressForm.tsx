@@ -19,6 +19,7 @@ import { useCart } from "./context/CartContext";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "./helpers/navigation";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 type Postcode = { name: string };
 
@@ -41,6 +42,7 @@ const AddressForm = () => {
   const [postcodeError, setPostcodeError] = useState("");
   const [isSuccess, setIsSuccess] = useState("");
   const [fetchPostCodes, setFetchPostCodes] = useState<Postcode[]>([]);
+  const [flagFirstTime, setFlagFirstTime] = useState(false)
 
   const handleChange = (key: string, value: string) => {
     setAddress((prev) => ({ ...prev, [key]: value }));
@@ -92,6 +94,7 @@ const AddressForm = () => {
       });
 
       if (res.data.result === "success") {
+        await AsyncStorage.setItem("formatted", formatted);
         setIsSuccess("Address Saved Successfully");
         setDeliveryAddressfn(formatted);
         setAddress({
@@ -101,6 +104,14 @@ const AddressForm = () => {
           postcode: "",
           city: "London",
         });
+
+        if(flagFirstTime){
+          setFlagFirstTime(false)
+           navigation.reset({
+                index: 0,
+                routes: [{ name: "Home" as never }],
+              });
+        }
       }
     } catch (err) {
       console.error("Error submitting address", err);
@@ -115,7 +126,6 @@ const AddressForm = () => {
       const response = await axios.get(`${BaseUrl}user/fetchPostCodes`, {
         params: { euid },
       });
-      console.log(response.data)
       setFetchPostCodes(response.data);
     } catch (err) {
       setErrors({ commonError: "Network Error, try again later" });
@@ -125,6 +135,9 @@ const AddressForm = () => {
   };
 
   useEffect(() => {
+    if(!deliveryAddress){
+      setFlagFirstTime(true)
+    }
     fetchPostCodesFn();
   }, []);
 

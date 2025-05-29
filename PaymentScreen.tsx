@@ -18,7 +18,6 @@ export default function PaymentScreen() {
   };
 
   const initializePaymentSheet = async () => {
-    console.log("Hello initializePaymentSheet")
     const { paymentIntent, ephemeralKey, customer } = await fetchPaymentSheetParams();
 
     const { error } = await initPaymentSheet({

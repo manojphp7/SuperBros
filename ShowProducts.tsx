@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   FlatList,
   View,
@@ -10,6 +10,7 @@ import { Card, Text } from "react-native-paper";
 import Product from "./Product";
 import { BaseUrl } from "./helpers/helpers";
 import { useCart } from "./context/CartContext";
+import { useFocusEffect } from "@react-navigation/native";
 
 type Item = {
   id: string;
@@ -34,6 +35,16 @@ const ShowProducts = ({
   const [quantities, setQuantities] = useState<{ [key: string]: number }>({});
   const { cartItems, addItem, removeItem, clearCart } = useCart();
 
+  useFocusEffect(
+  useCallback(() => {
+    const updatedQuantities: { [key: string]: number } = {};
+    cartItems.forEach((item) => {
+      updatedQuantities[item.id] = item.qty;
+    });
+    setQuantities(updatedQuantities);
+  }, [cartItems])
+);
+
   const handleAddPress = (item: Item) => {
     if (item.isWithAdons === 1) {
       setSelectedItem(item);
@@ -43,34 +54,31 @@ const ShowProducts = ({
     }
   };
 
-
-
-  const addToCart = (product:any, change: number) => {
+  const addToCart = (product: any, change: number) => {
     let updated = { ...quantities };
     const newQty = (quantities[product.id] || 0) + change;
     if (newQty <= 0) {
       delete updated[product.id];
-      removeItem(product.id)
-    } else{
-      updated =  { ...quantities, [product.id]: newQty };
+      removeItem(product.id);
+    } else {
+      updated = { ...quantities, [product.id]: newQty };
       addItem({
         id: product.id,
         name: product.name,
         image: product.image,
         isVeg: product.isVeg,
-        isWithAdons:product.isWithAdons,
+        isWithAdons: product.isWithAdons,
         productFinalPrice: product.price * updated[product.id],
-        extraPriceTotal:product.extraPrice * updated[product.id],
+        extraPriceTotal: product.extraPrice * updated[product.id],
         qty: updated[product.id],
       });
     }
-    setQuantities({...updated})
-    
+    setQuantities({ ...updated });
   };
 
   const renderItem = ({ item }: { item: Item }) => {
-    const quantity = quantities[item.id] || 0;
-
+   // const quantity = quantities[item.id] || 0;
+const quantity = cartItems.find(ci => ci.id === item.id)?.qty || 0;
     return (
       <Card style={styles.card} key={item.id}>
         <View style={styles.row}>

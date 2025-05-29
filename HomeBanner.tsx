@@ -10,16 +10,15 @@ import {
   ActivityIndicator,
   TouchableOpacity,
 } from "react-native";
-import { Card, TouchableRipple } from "react-native-paper";
+
 import Icon from "react-native-vector-icons/Ionicons";
-// import * as Location from "expo-location";
 import { useCart } from "./context/CartContext";
-import LocationBox from "./LocationBox";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "./helpers/navigation";
 import { useNavigation } from "@react-navigation/native";
-import { formatAddress } from "./helpers/helpers";
+import { AdminEuid, BaseUrl, formatAddress } from "./helpers/helpers";
 import Header from "./Header";
+import axios from "axios";
 
 const { width } = Dimensions.get("window");
 
@@ -39,97 +38,104 @@ type locationType = {
 };
 
 const HomeBanner = () => {
-  type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Home'>;
+  type NavigationProp = NativeStackNavigationProp<RootStackParamList, "Home">;
   const navigation = useNavigation<NavigationProp>();
 
-  const { handleLocation,userName } = useCart();
+  const { userName, setSettingsfn } = useCart();
 
-  const [showLocationBox, setShowLocationBox] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [userLocation, setUserLocation] = useState<locationType>();
-  const [formattedLocation, setFormattedLocation] = useState<null | string>(null)
-  
+  const [restaurantStatusLoading, setRestaurantStatusLoading] = useState(true);
 
-  // useEffect(() => {
-    // (async () => {
-    //   // 1. Ask for permission
-    //   const { status } = await Location.requestForegroundPermissionsAsync();
-    //   if (status !== "granted") {
-    //     setErrorMsg("Permission to access location was denied");
-    //     return;
-    //   }
+  const [restaurantStatus, setRestaurantStatus] = useState<string>("");
 
-    //   // 2. Get current location
-    //   const loc = await Location.getCurrentPositionAsync({});
-    //   const foundAddress = await Location.reverseGeocodeAsync({
-    //     latitude: loc.coords.latitude,
-    //     longitude: loc.coords.longitude,
-    //   });
-    //   const locationObj = foundAddress[0]
-    //   let formattedObj = ''
-      
-    //   if(!locationObj.formattedAddress){
-    //     formattedObj = formatAddress(locationObj);
-    //   } else{
-    //     formattedObj = locationObj.formattedAddress
-    //   }
+  const getSettings = async () => {
+    try {
+      setRestaurantStatusLoading(true);
+      const response = await axios.get(`${BaseUrl}user/settings`, {
+        params: {
+          euid: AdminEuid,
+        },
+      });
 
-    //   handleLocation(formattedObj);
-    //   setFormattedLocation(formattedObj);
+      const restaurantStatus =   response?.data?.restaurant;
 
-      
-  //   })();
-  // }, []);
+      if (restaurantStatus) {
+        setRestaurantStatus(restaurantStatus);
+      }
+      setSettingsfn(response.data);
+    } catch (err) {
+      console.error("Failed to fetch products");
+    } finally {
+      setRestaurantStatusLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    getSettings();
+  }, []);
 
   return (
     <>
-      <ImageBackground
-        source={{ uri: "https://atozassignment.com/outsideFiles/banner5.jpg" }}
-        style={{
-          height: 250,
-          position: "relative",
-          paddingBottom: 80, // to prevent overlap with scroll content
-          width: "100%",
-        }}
-        resizeMode="cover"
-      >
-        
-{/* --- Row 1: Location & Profile Icon --- */}
-        <Header bgColor=""/>
+      {restaurantStatusLoading ? null : restaurantStatus === "Open" ? (
+        <ImageBackground
+          source={{
+            uri: "https://atozassignment.com/outsideFiles/banner5.jpg",
+          }}
+          style={{
+            height: 250,
+            position: "relative",
+            paddingBottom: 80,
+            width: "100%",
+          }}
+          resizeMode="cover"
+        >
+          {/* --- Row 1: Location & Profile Icon --- */}
+          <Header isHome={true} />
 
-        <View style={styles.searchRow}>
-          <View style={styles.searchInputContainer}>
-            <TextInput
-              placeholder="Search for products..."
-              placeholderTextColor="#ccc"
-              style={styles.searchInput}
-            />
-            <Icon
-              name="search"
-              size={25}
-              color="#FC8019"
-              style={styles.searchIcon}
-            />
+          <View style={styles.searchRow}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate("Search")}
+              activeOpacity={0.8}
+            >
+              <View style={styles.searchInputContainer}>
+                <Text style={{ color: "#999", fontSize: 15 }}>
+                  Search for products...
+                </Text>
+                <Icon
+                  name="search"
+                  size={25}
+                  color="#FC8019"
+                  style={styles.searchIcon}
+                />
+              </View>
+            </TouchableOpacity>
           </View>
+        </ImageBackground>
+      ) : (
+        <View
+          style={{
+            height: 250,
+            position: "relative",
+            paddingBottom: 80,
+            width: "100%",
+            backgroundColor: "#f0f0f0",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <Text style={{ color: "#d32f2f", fontWeight: "bold", fontSize: 16 }}>
+            Restaurant is Closed Now.
+          </Text>
         </View>
-      </ImageBackground>
-
-      {/* <LocationBox
-        visible={showLocationBox}
-        prevLocation={
-          userLocation?.formattedAddress ?? "Location couldn't be fetched"
-        }
-        onClose={() => setShowLocationBox(false)}
-      /> */}
+      )}
     </>
   );
 };
 
 const styles = StyleSheet.create({
-  name:{
-    fontWeight:'bold',
+  name: {
+    fontWeight: "bold",
     fontSize: 16,
-    color:'#fff'
+    color: "#fff",
   },
   locationIcon: {
     marginRight: 6, // space between icon and text
@@ -139,7 +145,6 @@ const styles = StyleSheet.create({
     paddingBottom: 80, // to prevent overlap with the scroll content
     height: 780,
   },
-
 
   locationWrapper: {
     flex: 1,
@@ -162,7 +167,6 @@ const styles = StyleSheet.create({
     maxWidth: "90%", // Ensures text does not overflow
   },
 
-
   searchRow: {
     position: "absolute",
     top: 60,
@@ -172,8 +176,9 @@ const styles = StyleSheet.create({
   },
 
   searchInputContainer: {
-    flexDirection: "row",
+    flexDirection: "row", // Horizontal layout
     alignItems: "center",
+    justifyContent: "space-between", // Push icon to right
     backgroundColor: "#fff",
     borderRadius: 8,
     paddingHorizontal: 12,

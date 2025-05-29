@@ -63,8 +63,7 @@ const Product = ({ visible, product, onClose }: Props) => {
     setAdOnsLoading(true);
   }, [product.id]);
 
-  useEffect(() => {
-    const fetchAdons = async () => {
+   const fetchAdons = async () => {
       try {
         const response = await axios.get(`${BaseUrl}user/addons`, {
           params: { euid, pid: product.id },
@@ -76,6 +75,8 @@ const Product = ({ visible, product, onClose }: Props) => {
        setAdOnsLoading(false);
       }
     };
+
+  useEffect(() => {
     fetchAdons();
   }, [product.id]);
 

@@ -7,22 +7,41 @@ import { RootStackParamList } from "./helpers/navigation";
 import { useNavigation } from "@react-navigation/native";
 
 type HeaderProps = {
-  bgColor: string;
+  isBack?: boolean;
+  title?:string;
+  bgColor?: string;
+  isHome?: boolean
 };
 
-const Header = ({ bgColor }: HeaderProps) => {
+const Header = ({ title, bgColor, isBack,isHome }: HeaderProps) => {
   type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
   const navigation = useNavigation<NavigationProp>();
   const { userName } = useCart();
 
   return (
-    <View style={[styles.headerContainer, { backgroundColor: bgColor || "transparent" }]}>
-      <Text style={styles.name}>Hi {userName}</Text>
+    <View
+      style={[
+        styles.headerContainer,
+        { backgroundColor: bgColor || "transparent" },
+      ]}
+    >
+      {navigation.canGoBack() && isBack ? (
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
+          <Icon name="chevron-back" size={28} color={bgColor ? '#fff' : '#333'} />
+        </TouchableOpacity>
+      ) : (
+        <Text style={styles.name}>Hi {userName}</Text>
+      )}
+
+      {title && (<Text style={styles.headerTitle}>{title}</Text>)}
       <TouchableOpacity
         style={styles.profileContainer}
         onPress={() => navigation.navigate("Profile")}
       >
-        <Icon name="person-circle-outline" size={28} color="#fff" />
+        <Icon name="person-circle-outline" size={28} color={ bgColor || isHome ? "#fff" : "#333"} />
       </TouchableOpacity>
     </View>
   );
@@ -38,7 +57,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 8,
     paddingHorizontal: 16, // Optional: remove if no spacing needed
-    marginBottom:10
+    marginBottom: 10,
   },
   name: {
     fontSize: 16,
@@ -47,5 +66,21 @@ const styles = StyleSheet.create({
   },
   profileContainer: {
     padding: 4,
+  },
+  backButton: {
+    padding: 4,
+    paddingRight: 15,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 2,
+    backgroundColor: "#fff",
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
   },
 });

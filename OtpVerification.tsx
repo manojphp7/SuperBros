@@ -12,100 +12,104 @@ import { useCart } from "./context/CartContext";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { RootStackParamList } from "./helpers/navigation";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { io, Socket } from 'socket.io-client';
-import { DefaultEventsMap } from '@socket.io/component-emitter';
+import { io, Socket } from "socket.io-client";
+import { DefaultEventsMap } from "@socket.io/component-emitter";
 type MySocket = Socket<DefaultEventsMap, DefaultEventsMap>;
 import axios from "axios";
-import { AdminEuid, BaseUrl } from "./helpers/helpers";
-
-
+import { AdminEuid, BaseUrl, SOCKET_URL, UserRoles } from "./helpers/helpers";
 
 type OtpRouteProp = RouteProp<RootStackParamList, "OtpVerification">;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const OtpVerification = () => {
-  const SOCKET_URL = 'https://servernotification-d1gc.onrender.com';
   const [otp, setOtp] = useState("");
   const route = useRoute<OtpRouteProp>();
   const navigation = useNavigation<NavigationProp>();
   const [loading, setLoading] = useState(false);
-  const { loginUser,handleSocket,setDeliveryAddressfn } = useCart();
+  const { loginUser, handleSocket, setDeliveryAddressfn,setUserRoleFn } = useCart();
   const mobile = route.params.phone;
-
 
   const handleVerify = async () => {
     if (otp.length !== 4) {
       Alert.alert("Invalid OTP", "Please enter a valid 4-digit OTP.");
       return;
     }
-  
+
     try {
       setLoading(true);
       const response = await axios.post(`${BaseUrl}user/verifyOTP`, {
         mobile: mobile,
         otp: otp,
       });
-  
+
       const data = response.data;
       const euid = data?.euid;
       const formatted = data?.formatted;
-  console.log(formatted)
-  setDeliveryAddressfn(formatted)
+      const role = data?.role;
+
       if (euid) {
         await AsyncStorage.setItem("euid", euid); // save it permanently
-        loginUser(euid)
-
+        await AsyncStorage.setItem("role", role); // save it permanently
+        
+        loginUser(euid);
+        setUserRoleFn(role)
 
         /******SOCKET CODE************ */
 
         const socket: MySocket = io(SOCKET_URL, {
-          transports: ['websocket'], // Required for React Native
+          transports: ["websocket"], // Required for React Native
         });
-    
-        
-    
-        socket.on('connect', () => {
-          console.log('✅ Connected to server');
+
+        socket.on("connect", () => {
+          console.log("✅ Connected to server");
         });
-    
+
         if (socket) {
-          socket.emit('register',euid);
-          handleSocket(socket)
-          console.log('📤 Registered user:', euid);
+          socket.emit("register", euid);
+          handleSocket(socket);
+          console.log("📤 Registered user:", euid);
         }
 
-        if (euid === AdminEuid) {
+        if (role === UserRoles.ADMIN) {
           navigation.reset({
             index: 0,
-            routes: [{ name: "AdminScreen" as never }],
+            routes: [{ name: "Dashboard" as never }],
           });
         } else {
-          if(formatted)
-          {
+          if (role === UserRoles.DELIVERY_BOY) {
             navigation.reset({
               index: 0,
-              routes: [{ name: "Home" as never }],
+              routes: [{ name: "MyDeliveries" as never }],
             });
-          }
-          else{
-            navigation.reset({
-              index: 0,
-              routes: [{ name: "AddressForm" as never }],
-            });
+          } else {
+            if (formatted) {
+              setDeliveryAddressfn(formatted);
+              await AsyncStorage.setItem("formatted", formatted);
+              navigation.reset({
+                index: 0,
+                routes: [{ name: "Home" as never }],
+              });
+            } else {
+              navigation.reset({
+                index: 0,
+                routes: [{ name: "AddressForm" as never }],
+              });
+            }
           }
         }
-        
       } else {
         Alert.alert("Incorrect OTP", "Invalid otp was entered.");
       }
     } catch (err) {
-      console.error("Incorrect OTP" );
-      Alert.alert("Verification Error", "Something went wrong. Please try again.");
+      console.error("Incorrect OTP");
+      Alert.alert(
+        "Verification Error",
+        "Something went wrong. Please try again."
+      );
     } finally {
       setLoading(false);
     }
   };
-  
 
   return (
     <View style={styles.container}>

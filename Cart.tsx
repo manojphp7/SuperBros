@@ -6,7 +6,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   TextInput,
   ActivityIndicator,
 } from "react-native";
@@ -24,6 +23,13 @@ import axios from "axios";
 import { BaseUrl } from "./helpers/helpers";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform, StatusBar } from "react-native";
+import Header from "./Header";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+type PostsCodeChargeType = {
+  name: string;
+  price: string;
+};
 
 const Cart = () => {
   type NavigationProp = NativeStackNavigationProp<RootStackParamList, "Home">;
@@ -37,37 +43,85 @@ const Cart = () => {
     latLong,
     handleFlat,
     flat,
+    deliveryAddress,
+    euid,
   } = useCart();
 
   const [addresses, setAddresses] = useState<any[]>([]);
-  const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
+  const [selectedAddress, setSelectedAddress] = useState<string | null>(
+    deliveryAddress
+  );
   const [isLoadingAddresses, setIsLoadingAddresses] = useState(true);
+  const [loadingPostCodeCharges, setLoadingPostCodeCharges] =
+    useState<any>(null);
+  const [postsCodeCharges, setPostsCodeCharges] = useState<any>(null);
+  const [postCode, setPostCode] = useState<string | null>(null);
+  const [postCodeCharge, setPostCodeCharge] = useState(0);
+  const [totalPrice, setTotalPrice] = useState<number>(0);
+  const [extraPrice, setExtraPrice] = useState<number>(0);
+  const [billedAmount, setBilledAmount] = useState<number | null>(null)
+  const [deliveryOption, setDeliveryOption] = useState<'pickup' | 'delivery'>('delivery');
 
-  useEffect(() => {
-    const fetchAddresses = async () => {
-      const euid = await AsyncStorage.getItem("euid");
-      try {
-        const response = await axios.get(`${BaseUrl}user/addresses`, {
-          params: { euid },
-        });
-        let addressesData = response.data;
-        if (Array.isArray(addressesData)) {
-          if (userLocation?.formattedAddress) {
-            addressesData = [
-              ...addressesData,
-              { formatted: userLocation.formattedAddress },
-            ];
-          }
-          setAddresses(addressesData);
-        }
-        setIsLoadingAddresses(false);
-      } catch (error) {
-        console.error("Error fetching addresses:", error);
+  const fetchAddresses = async () => {
+    try {
+      const response = await axios.get(`${BaseUrl}user/addresses`, {
+        params: { euid },
+      });
+      let addressesData = response.data;
+      if (Array.isArray(addressesData)) {
+        // if (userLocation?.formattedAddress) {
+        //   addressesData = [
+        //     ...addressesData,
+        //     { formatted: userLocation.formattedAddress },
+        //   ];
+        // }
+        setAddresses(addressesData);
       }
-    };
+      setIsLoadingAddresses(false);
+    } catch (error) {
+      console.error("Error fetching addresses:", error);
+    }
+  };
 
-    fetchAddresses();
-  }, []);
+  const getPostCodeCharge = async () => {
+    setLoadingPostCodeCharges(true);
+    try {
+      const response = await axios.get(`${BaseUrl}user/postCodeCharge`, {
+        params: { euid },
+      });
+      setPostsCodeCharges(response.data);
+    } catch (err) {
+      console.error("FetchPostCode error");
+    } finally {
+      setLoadingPostCodeCharges(false);
+    }
+  };
+
+  const extractPostCode = (address: string) => {
+    const city = "London";
+
+    const parts = address.split(",");
+    const cityIndex = parts.findIndex(
+      (part) => part.trim().toLowerCase() === city.toLowerCase()
+    );
+
+    let postCode = "";
+    if (cityIndex > 0) {
+      postCode = parts[cityIndex - 1].trim();
+    }
+    setPostCode(postCode);
+
+    const match = postsCodeCharges.find(
+      (item: PostsCodeChargeType) =>
+        item.name.toUpperCase() === postCode.toUpperCase()
+    );
+
+    const price = match ? match.price : 0;
+
+    setPostCodeCharge(Number(price));
+  };
+
+
 
   const handleItem = (itemId: string, updatedQty: number) => {
     if (updatedQty < 1) {
@@ -93,6 +147,42 @@ const Cart = () => {
 
     addItem(updatedItem);
   };
+
+  useEffect(() => {
+    getPostCodeCharge();
+    fetchAddresses();
+  }, []);
+
+  useEffect(() => {
+    if (postsCodeCharges) {
+      extractPostCode(deliveryAddress);
+    }
+  }, [postsCodeCharges]);
+
+  useEffect(() => {
+    if(cartItems.length === 0) {
+        setPostCodeCharge(0)
+    }
+       const sum = cartItems.reduce(
+      (sum, item) => sum + parseFloat(item.productFinalPrice.toString()),
+      0
+    );
+    const extraPricesum = cartItems.reduce(
+      (sum, item) => sum + parseFloat(item.extraPriceTotal.toString()),
+      0
+    );
+
+    setTotalPrice(sum);
+    setExtraPrice(extraPricesum);
+    if(deliveryOption ==='pickup'){
+      setBilledAmount(sum)
+    }
+    else{
+      setBilledAmount(sum + postCodeCharge)
+    }
+   
+   
+  }, [cartItems, postCodeCharge,deliveryOption]);
 
   const renderItem = ({ item }: { item: any }) => (
     <View style={styles.cartItemRow}>
@@ -132,19 +222,11 @@ const Cart = () => {
   );
 
   return (
-    <PaperProvider theme={theme}>
+    
       <SafeAreaProvider>
-        <SafeAreaView style={{ flex: 1 }}>
-          {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigation.goBack()}>
-              <Icon name="arrow-back" size={24} color="#000" />
-            </TouchableOpacity>
-            <Text style={styles.cartText}>Cart</Text>
-            <TouchableOpacity onPress={() => navigation.navigate("Profile")}>
-              <Icon name="person-circle-outline" size={32} color="#FC8019" />
-            </TouchableOpacity>
-          </View>
+        <SafeAreaView  style={styles.safeArea} edges={['top']}>
+          <PaperProvider theme={theme}>
+          <Header title="Cart" isBack={true}/>
 
           {/* Scrollable Content */}
           <ScrollView contentContainerStyle={styles.scrollContainer}>
@@ -170,7 +252,27 @@ const Cart = () => {
               <ProductsSlider />
             </View>
 
+
+            <View style={styles.cardContainer}>
+              <View style={styles.deliveryOptionWrapper}>
+               {['delivery', 'pickup'].map((option) => (
+        <TouchableOpacity
+          key={option}
+          style={styles.optionContainer}
+          onPress={() => setDeliveryOption(option as 'pickup' | 'delivery')}
+        >
+          <View style={styles.radioCircle}>
+            {deliveryOption === option && <View style={styles.selectedDot} />}
+          </View>
+          <Text style={styles.optionText}>
+            {option === 'pickup' ? 'Pickup' : 'Delivery'}
+          </Text>
+        </TouchableOpacity>
+      ))}
+      </View>
+            </View>
             {/* Address List with Add Button */}
+            {deliveryOption ==='delivery' &&
             <View style={styles.cardContainer}>
               <Text style={styles.addressTitle}>Select Delivery Address</Text>
               {isLoadingAddresses ? (
@@ -184,6 +286,16 @@ const Cart = () => {
                     onPress={() => {
                       setDeliveryAddressfn(addr.formatted);
                       setSelectedAddress(addr.formatted);
+
+                      const match = postsCodeCharges.find(
+                        (item: PostsCodeChargeType) =>
+                          item.name.toUpperCase() ===
+                          addr.postcode.toUpperCase()
+                      );
+
+                      const price = match ? match.price : 0;
+
+                      setPostCodeCharge(Number(price));
                     }}
                     style={styles.addressRow}
                   >
@@ -218,56 +330,116 @@ const Cart = () => {
                 </View>
               </TouchableOpacity>
 
-              {/* <TouchableOpacity
-                  onPress={() => navigation.navigate("AddressForm")}
-                  style={styles.addressActionBtn}
-                >
-                  
-                </TouchableOpacity> */}
-              {/* OR Separator 
-              <View style={styles.orWrapper}>
-                <View style={styles.line} />
-                <Text style={styles.orText}>OR</Text>
-                <View style={styles.line} />
+             
+            </View>
+}
+            <View style={styles.cardContainer}>
+              <View style={styles.row}>
+                <Text style={styles.label}>Gross Total:</Text>
+                <Text style={styles.value}>
+                  £{Number(extraPrice).toFixed(2)}
+                </Text>
               </View>
-              <View style={styles.addressButtonsWrapper}>
-                <TouchableOpacity
-                  onPress={() => navigation.navigate("LocationPicker")}
-                  style={styles.addressActionBtn}
-                >
-                  <Icon name="navigate-outline" size={18} color="#1ca672" />
-                  <Text style={styles.addressActionText}>
-                    Use Current Location
-                  </Text>
-                </TouchableOpacity>
+              <View style={styles.row}>
+                <Text style={styles.label}>Discount:</Text>
+                <Text style={styles.value}>
+                  - £{(Number(extraPrice) - Number(totalPrice)).toFixed(2)}
+                </Text>
               </View>
-
-              {latLong && (
-                <View>
-                  <TextInput
-                    style={[styles.flat]}
-                    placeholder="Enter Flat/Building Number for your location"
-                    value={flat}
-                    onChangeText={(text) => handleFlat(text.trim())}
-                  />
-                </View>
-              )}*/}
+              {deliveryOption ==='delivery' &&
+              <View style={styles.row}>
+                <Text style={styles.label}>Delivery:</Text>
+                <Text style={styles.value}>
+                  £{Number(postCodeCharge).toFixed(2)}
+                </Text>
+              </View>
+}
+              <View style={[styles.row, styles.totalRow]}>
+                <Text style={styles.totalLabel}>Billed Amount:</Text>
+                <Text style={styles.totalValue}>
+                  £{billedAmount && (billedAmount).toFixed(2)}
+                </Text>
+              </View>
             </View>
           </ScrollView>
 
           {/* Proceed To Pay */}
-          {!isLoadingAddresses && (
-            <View style={styles.footer}>
-              <ProceedToPay />
-            </View>
+          {!isLoadingAddresses && (cartItems.length > 0) && (
+            <ProceedToPay billedAmount={billedAmount} deliveryOption={deliveryOption} deliveryCharges={postCodeCharge}/>
           )}
+          </PaperProvider>
         </SafeAreaView>
       </SafeAreaProvider>
-    </PaperProvider>
+    
   );
 };
 
 const styles = StyleSheet.create({
+  deliveryOptionWrapper:{
+ flexDirection: 'row',
+  justifyContent: 'space-between', // or 'center' if you want them close together
+  alignItems: 'center',
+  padding: 10,
+  gap: 20, // opti
+  },
+   selectedDot: {
+    height: 10,
+    width: 10,
+    borderRadius: 5,
+    backgroundColor: 'green',
+  },
+    optionText: {
+    fontSize: 16,
+    color: '#333',
+  },
+    optionContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  proceedButton: {
+    backgroundColor: 'green',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  proceedText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 6,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#ccc",
+  },
+  label: {
+    fontSize: 16,
+    color: "#444",
+  },
+  value: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#000",
+  },
+  totalRow: {
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#999",
+    paddingTop: 10,
+  },
+  totalLabel: {
+    fontSize: 17,
+    fontWeight: "bold",
+    color: "#333",
+  },
+  totalValue: {
+    fontSize: 17,
+    fontWeight: "bold",
+    color: "#000",
+  },
   flat: {
     borderWidth: 1,
     borderColor: "#ccc",
@@ -390,8 +562,8 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     marginHorizontal: 4,
     width: 35,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   qtyButtonText: {
     fontSize: 18,
@@ -401,7 +573,7 @@ const styles = StyleSheet.create({
   qtyText: {
     fontSize: 12,
     fontWeight: "bold",
-    paddingHorizontal: 5
+    paddingHorizontal: 5,
   },
   priceInfo: {
     alignItems: "flex-end",

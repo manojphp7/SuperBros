@@ -11,7 +11,7 @@ const FloatingCartButton = () => {
   type NavigationProp = NativeStackNavigationProp<RootStackParamList, "Home">;
   const navigation = useNavigation<NavigationProp>();
 
-  const { cartItems, addItem, removeItem, clearCart } = useCart();
+  const { cartItems, addItem, removeItem, clearCart,orderOnProcess } = useCart();
 
   const [savedAmount, setSavedAmount] = useState<undefined | string>();
 
@@ -34,6 +34,7 @@ const FloatingCartButton = () => {
 
   return (
     <SafeAreaView>
+      <>
       {cartItems.length > 0 && (
         <View style={styles.floatingWrapper}>
           <View style={styles.floatingHeader}>
@@ -66,6 +67,12 @@ const FloatingCartButton = () => {
           </View>
         </View>
       )}
+        {(orderOnProcess && orderOnProcess.length > 0) &&
+          
+          <Text style={{ marginBottom: 10 }} > </Text>
+          
+        }
+        </>
     </SafeAreaView>
   );
 };

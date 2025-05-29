@@ -1,104 +1,216 @@
-import React, { useState } from "react";
-import { View, Text, StyleSheet, Image } from "react-native";
+import React, { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  Alert,
+  ActivityIndicator,
+  Button,
+} from "react-native";
 import { RouteProp, useRoute } from "@react-navigation/native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { RootStackParamList } from "./helpers/navigation";
-import { formatCurrency, formatDate } from "./helpers/helpers";
+import { BaseUrl, formatCurrency, formatDate } from "./helpers/helpers";
 import DispatchView from "./DispatchView";
 import Header from "./Header";
+import { useCart } from "./context/CartContext";
+import axios from "axios";
 
-type OrderDetailRouteProp = RouteProp<RootStackParamList, "OrderDetails">;
+type orderObjType = {
+  address: string;
+  amount: string;
+  deliveryBoy: string;
+  deliveryCharges: string;
+  deliveryOption: string;
+  description: string;
+  euid: string;
+  id: string;
+  movement: string;
+  status: string;
+};
 
 const OrderDetails = () => {
-  const route = useRoute<OrderDetailRouteProp>();
-  const { orderObj } = route.params;
-  const [remainingTime, setRemainingTime] = useState<number>(22); 
+  const route = useRoute();
+  const { orderID } = route.params as { orderID: string };
+  const [orderObj, setOrderObj] = useState<orderObjType | null>(null);
+  const [loading, setLoading] = useState(true);
+  const { getRemainingTime, euid, orderOnProcess, setOrderOnProcessFn } =
+    useCart();
+
+  const fetchOrder = async () => {
+    try {
+      const response = await axios.get(`${BaseUrl}user/getOrderDetail`, {
+        params: {
+          euid,
+          orderID,
+        },
+      });
 
 
+      if (response.data["id"] !== "") {
+        setOrderObj(response.data);
 
-  
-  
+        if (response.data["status"] === "Awaiting") {
+          if (orderOnProcess) {
+            const exists = orderOnProcess.some((order) => order.id === orderID);
+            if (!exists) {
+              setOrderOnProcessFn([response.data]);
+            } else {
+              setOrderOnProcessFn([...orderOnProcess, response.data]);
+            }
+          }
+        }
+      } else {
+        Alert.alert("Order not found.");
+      }
+    } catch (err: any) {
+      const errorMessage =
+        err?.response?.data?.message || // Axios-style error
+        err?.message || // Generic JS error
+        JSON.stringify(err); // Fallback to full error object
+      console.error("catch error " + errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (orderOnProcess) {
+      const foundOrder = orderOnProcess.find((order) => order.id === orderID);
+      if (foundOrder) {
+        setOrderObj(foundOrder);
+        setLoading(false);
+      } else {
+        fetchOrder();
+      }
+    }
+  }, [orderOnProcess, orderID]);
+
   return (
-    <SafeAreaView>
-      <Header bgColor="#FC8019" />
-      <View style={styles.orderCard}>
-        <View style={styles.rowBetween}>
-          <Text style={styles.orderId}>Order #{orderObj.id}</Text>
-          <View style={styles.statusContainer}>
-            <Text
-              style={[
-                styles.statusText,
-                orderObj.status === "Cancelled" && styles.statusCancelled,
-              ]}
-            >
-              {orderObj.status}
-            </Text>
-          </View>
-        </View>
-
-        <Text style={styles.dateText}>{formatDate(orderObj.movement)}</Text>
-
-        <View style={styles.priceRow}>
-          <Text style={styles.priceLabel}>Total Paid:</Text>
-          <Text style={styles.priceValue}>
-            {formatCurrency(parseFloat(orderObj.amount))}
+    <SafeAreaView style={{ flex: 1 }}>
+      <Header isBack={true} bgColor="#FC8019" />
+      {loading || !orderObj ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#FC8019" />
+          <Text style={{ marginTop: 10, color: "#555" }}>
+            Loading order details...
           </Text>
         </View>
-
-        <View style={styles.dashedDivider} />
-
-        <Text style={styles.itemsTitle}>Items Ordered:</Text>
-
-        {JSON.parse(orderObj.description).map((prod: any, idx: number) => (
-          <View key={idx} style={styles.itemRowCustom}>
-            {prod.isVeg ? (
-              <View style={styles.vegSymbol}>
-                <View style={styles.greenDot} />
+      ) : (
+        <>
+          <View style={styles.orderCard}>
+            <View style={styles.rowBetween}>
+              <Text style={styles.orderId}>Order #{orderObj.id}</Text>
+              <View style={styles.statusContainer}>
+                <Text
+                  style={[
+                    styles.statusText,
+                    orderObj.status === "Cancelled" && styles.statusCancelled,
+                  ]}
+                >
+                  {orderObj.status}
+                </Text>
               </View>
+            </View>
+
+            <Text style={styles.dateText}>{formatDate(orderObj.movement)}</Text>
+
+            <View style={styles.priceRow}>
+              <Text style={styles.priceLabel}>Total Paid:</Text>
+              <Text style={styles.priceValue}>
+                {formatCurrency(parseFloat(orderObj.amount))}
+              </Text>
+            </View>
+
+            <View style={styles.dashedDivider} />
+
+            <Text style={styles.itemsTitle}>Items Ordered:</Text>
+
+            {Array.isArray(JSON.parse(orderObj.description)) ? (
+              JSON.parse(orderObj.description).map((prod: any, idx: number) => (
+                <View key={idx} style={styles.itemRowCustom}>
+                  {prod.isVeg ? (
+                    <View style={styles.vegSymbol}>
+                      <View style={styles.greenDot} />
+                    </View>
+                  ) : (
+                    <View style={styles.nonVegSymbol}>
+                      <View style={styles.redDot} />
+                    </View>
+                  )}
+
+                  <View style={{ flex: 1, marginLeft: 8 }}>
+                    <Text style={styles.itemName}>{prod.name}</Text>
+                    {prod.adOnsNames?.length > 0 && (
+                      <Text style={styles.addonText}>
+                        Add-ons: {prod.adOnsNames.join(", ")}
+                      </Text>
+                    )}
+                  </View>
+
+                  <Text style={styles.itemPrice}>
+                    {formatCurrency(prod.productFinalPrice)}
+                  </Text>
+                </View>
+              ))
             ) : (
-              <View style={styles.nonVegSymbol}>
-                <View style={styles.redDot} />
+              <Text style={{ color: "red" }}>Invalid order item format</Text>
+            )}
+            {orderObj.deliveryOption === "delivery" && (
+              <View style={styles.itemRowCustom}>
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <Text style={styles.itemName}>Delivery Charge</Text>
+                </View>
+
+                <Text style={styles.itemPrice}>
+                  {formatCurrency(orderObj.deliveryCharges)}
+                </Text>
               </View>
             )}
-
-            <View style={{ flex: 1, marginLeft: 8 }}>
-              <Text style={styles.itemName}>{prod.name}</Text>
-              {prod.adOnsNames?.length > 0 && (
-                <Text style={styles.addonText}>
-                  Add-ons: {prod.adOnsNames.join(", ")}
-                </Text>
-              )}
-            </View>
-
-            <Text style={styles.itemPrice}>
-              ₹{prod.price ? parseFloat(prod.price).toFixed(2) : "0.00"}
-            </Text>
           </View>
-        ))}
-      </View>
-      <View>
-        <View style={styles.etaContainer}>
-          {orderObj.status === "Preparing" && (
-            <View style={styles.preparingCard}>
-              <Image
-                source={require("./assets/cooking-boiling.gif")}
-                style={styles.preparingGif}
-              />
-              <Text style={styles.preparingText}>
-                Your food is being freshly prepared!
-              </Text>
-              <Text style={styles.preparingSubtext}>
-                Hang tight, we’re cooking it with love.
+
+          <View>
+            <View style={styles.etaContainer}>
+              {orderObj.status === "Awaiting" && (
+                <View style={styles.preparingCard}>
+                  <Image
+                    source={require("./assets/awaiting.gif")}
+                    style={styles.preparingGif}
+                  />
+                  <Text style={styles.preparingText}>
+                    Pinning your address... Almost there!
+                  </Text>
+                </View>
+              )}
+              {orderObj.status === "Preparing" && (
+                <View style={styles.preparingCard}>
+                  <Image
+                    source={require("./assets/cooking-boiling.gif")}
+                    style={styles.preparingGif}
+                  />
+                  <Text style={styles.preparingText}>
+                    Your food is being freshly prepared!
+                  </Text>
+                  <Text style={styles.preparingSubtext}>
+                    Hang tight, we're cooking it with love.
+                  </Text>
+                </View>
+              )}
+              {orderObj.status === "Dispatched" && (
+                <DispatchView orderOnProcess={orderOnProcess} />
+              )}
+
+              <Text style={styles.etaText}>
+                Arriving Soon...
               </Text>
             </View>
-          )}
-
-          {/* {orderObj.status === "Dispatch" && ( */}
-          <DispatchView orderObj={orderObj} />
-          {/* )} */}
-          <Text style={styles.etaText}>Arriving in 22 mins</Text>
-        </View>
-      </View>
+          </View>
+        </>
+      )}
     </SafeAreaView>
   );
 };
@@ -106,8 +218,13 @@ const OrderDetails = () => {
 export default OrderDetails;
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   etaContainer: {
-    backgroundColor: "#FFF5ED", // light orange tint
+    backgroundColor: "#FFF5ED",
     padding: 20,
     borderRadius: 16,
     marginTop: 20,
@@ -142,53 +259,11 @@ const styles = StyleSheet.create({
   etaText: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#0c864f", // a strong green for contrast
+    color: "#0c864f",
     marginTop: 10,
     textAlign: "center",
     letterSpacing: 0.5,
   },
-
-  dispatchContainer: {
-    alignItems: "center",
-    backgroundColor: "#E3F2FD",
-    padding: 16,
-    borderRadius: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  dispatchHeading: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1976D2",
-    marginBottom: 4,
-  },
-  dispatchAddressLabel: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: "#555",
-    marginTop: 6,
-  },
-  dispatchAddress: {
-    fontSize: 14,
-    textAlign: "center",
-    color: "#222",
-    marginTop: 2,
-  },
-
-  deliveryGif: {
-    width: 150,
-    height: 150,
-    marginBottom: 10,
-  },
-  cookingGif: {
-    width: 100,
-    height: 100,
-    marginBottom: 10,
-  },
-
   orderCard: {
     marginBottom: 25,
     padding: 16,

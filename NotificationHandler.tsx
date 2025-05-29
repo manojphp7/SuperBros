@@ -1,21 +1,20 @@
 import React from 'react'
-import { usePushNotifications } from './helpers/PushNotification';
 import { useCart } from "./context/CartContext";
 
 const NotificationHandler = () => {
-    const { userOrderStatusUpdateHandling } = useCart();
-    const token = usePushNotifications((obj: any) => {
+    // const { userOrderStatusUpdateHandling } = useCart();
+    // const token = usePushNotifications((obj: any) => {
     
-      const body = obj?.data?.body ? JSON.parse(obj?.data?.body) : null;
+    //   const body = obj?.data?.body ? JSON.parse(obj?.data?.body) : null;
     
-      if (body) {
-        if (body.refresh === "userOrderUpdate") {
-          userOrderStatusUpdateHandling(body.orderObj);
-        }
-      } else {
-        console.log("No body or data in the notification payload.");
-      }
-    });
+    //   if (body) {
+    //     if (body.refresh === "userOrderUpdate") {
+    //       userOrderStatusUpdateHandling(body.orderObj);
+    //     }
+    //   } else {
+    //     console.log("No body or data in the notification payload.");
+    //   }
+    // });
 
   return (
     <></>

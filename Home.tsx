@@ -22,8 +22,7 @@ import LightDivider from "./LightDivider";
 import FloatingCartButton from "./FloatingCartButton";
 import SaveName from "./SaveName";
 import axios from "axios";
-import { BaseUrl } from "./helpers/helpers";
-import { registerForPushNotificationsAsync } from "./helpers/PushNotification";
+import { AdminEuid, BaseUrl } from "./helpers/helpers";
 import { useCart } from "./context/CartContext";
 import FloatingOrderBox from "./FloatingOrderBox";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
@@ -49,8 +48,11 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [products, setProducts] = useState<Item[]>([]);
   const [showNameModal, setShowNameModal] = useState(false);
+  
 
-  const { euid, handleUserName, userName, savedSocket,logoutUser,deliveryAddress } = useCart();
+  const { euid, handleUserName, userName, savedSocket,logoutUser,deliveryAddress,orderOnProcess,setSettingsfn } = useCart();
+
+
 
   useEffect(() => {
     const checkUserName = async () => {
@@ -64,30 +66,24 @@ export default function Home() {
       }
     };
 
-    const checkExpoToken = async () => {
-      const existingToken = await AsyncStorage.getItem("expoToken");
-      if (!existingToken || existingToken.trim() === "") {
-        const expoToken = await registerForPushNotificationsAsync();
-        if (expoToken) {
-          AsyncStorage.setItem("expoToken", expoToken);
-          axios.post(`${BaseUrl}user/saveExpoToken`, {
-            euid: euid,
-            expo_token: expoToken,
-          });
-        }
-      }
-    };
+    // const checkExpoToken = async () => {
+    //   const existingToken = await AsyncStorage.getItem("expoToken");
+    //   if (!existingToken || existingToken.trim() === "") {
+    //     const expoToken = await registerForPushNotificationsAsync();
+    //     if (expoToken) {
+    //       AsyncStorage.setItem("expoToken", expoToken);
+    //       axios.post(`${BaseUrl}user/saveExpoToken`, {
+    //         euid: euid,
+    //         expo_token: expoToken,
+    //       });
+    //     }
+    //   }
+    // };
 
-    if(deliveryAddress){
+      
       checkUserName();
       fetchProducts();
-      //checkExpoToken();
-    } else{
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "AddressForm" as never }],
-      });
-    }
+    
    
   }, []);
 
@@ -109,18 +105,7 @@ export default function Home() {
     }
   };
 
-  const sendMessage = async (to: string, message: string) => {
-    // await AsyncStorage.setItem("euid","");
-    // logoutUser()
-    if (euid && savedSocket) {
-      savedSocket.emit("send_message", {
-        to,
-        from: euid,
-        message,
-      });
-      console.log(`📤 Message sent from ${euid} to ${to}: ${message}`);
-    }
-  };
+  
 
   return (
     <PaperProvider theme={theme}>
@@ -134,19 +119,13 @@ export default function Home() {
               <>
                 <HomeBanner />
                 <CategoriesSlider />
-                <TouchableOpacity
-                  onPress={() => sendMessage("2b8cc9d9b360d7ca22a4fcfe196ca64b", "Hello Manoj")}
-                >
-                  <Text>Send Message</Text>
-                </TouchableOpacity>
                 <SectionHeading title="Popular Products" />
                 <LightDivider />
                 <ShowProducts products={products} loading={loading} />
               </>
             }
           />
-          <FloatingCartButton />
-
+          
           {/* Name Modal */}
           <Modal
             visible={showNameModal}
@@ -162,7 +141,12 @@ export default function Home() {
               </View>
             </TouchableWithoutFeedback>
           </Modal>
+
+          <FloatingCartButton />  
+          
           <FloatingOrderBox />
+      
+          
         </SafeAreaView>
       </SafeAreaProvider>
     </PaperProvider>

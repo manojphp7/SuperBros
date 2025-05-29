@@ -1,8 +1,10 @@
 import { CartItem } from "../context/CartContext";
+import Delivered from "../DeliveryBoy/Delivered";
 
 export const AdminEuid = "2b8cc9d9b360d7ca22a4fcfe196ca64b"; //Admin
 export const AdminExpoToken = "ExponentPushToken[QKxSK2POo4BPpQv5euJsxr]"; //Admin
 export const BaseUrl = "https://restaurants.atozassignment.com/";
+export const SOCKET_URL = 'https://servernotification-d1gc.onrender.com';
 
 export const formatCurrency = (
   amount: number | string | undefined | null,
@@ -52,6 +54,7 @@ export const adminMenuItems = [
   { id: "dashboard", label: "Dashboard" },
   { id: "orders", label: "Orders" },
   { id: "settings", label: "Settings" },
+  { id: "deliveryboy", label: "DeliveryBoys" },
 ];
 
 
@@ -66,3 +69,18 @@ export const formatDate = (dateStr: string) => {
     minute: "2-digit",
   });
 };
+
+export const UserRoles = {
+  ADMIN: 'admin',
+  DELIVERY_BOY: 'deliveryBoy',
+  CUSTOMER: 'customer',
+}
+
+
+export const orderStatus = {
+  AWAITING: 'Awaiting',
+  PREPARING: 'Preparing',
+  DISPATCHED: 'Dispatched',
+  DELIVERED: 'Delivered',
+  DECLINED: 'Declined'
+}

@@ -18,6 +18,8 @@ const Logout = () => {
     const performLogout = async () => {
       try {
         await AsyncStorage.removeItem("euid"); // 🔥 Delete euid from storage
+        await AsyncStorage.removeItem("role"); // 🔥 Delete role from storage
+        await AsyncStorage.removeItem("formatted"); // 🔥 Delete formatted from storage
         await logoutUser(); // Log the user out
         // Navigate to login or splash screen
         navigation.reset({

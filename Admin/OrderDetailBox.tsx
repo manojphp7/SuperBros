@@ -7,15 +7,22 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  Linking
+  Linking,
 } from "react-native";
 import Modal from "react-native-modal";
 import Icon from "react-native-vector-icons/Ionicons";
-import { AdminEuid, BaseUrl, formatCurrency } from "../helpers/helpers";
+import {
+  AdminEuid,
+  BaseUrl,
+  formatCurrency,
+  orderStatus,
+} from "../helpers/helpers";
 import axios from "axios";
 import * as Print from "expo-print";
 import { PrintPreviewModal } from "./PrintPreviewModal";
-import { sendPushNotification, sendSilentData } from "../helpers/PushNotification";
+
+import { useCart } from "../context/CartContext";
+import { Picker } from "@react-native-picker/picker";
 
 interface OrderDetailBoxProps {
   visible: boolean;
@@ -35,48 +42,81 @@ export const OrderDetailBox: React.FC<OrderDetailBoxProps> = ({
 
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewContent, setPreviewContent] = useState("");
+  const [deliveryBoysLoading, setDeliveryBoysLoading] = useState(false);
+  const [deliveryBoys, setDeliveryBoys] = useState([]);
+  const [selectedDBoy, setSelectedDBoy] = useState(null);
+
+  const { euid, savedSocket } = useCart();
 
   useEffect(() => {
     if (visible) {
       setLoading(false);
       setUpdatedStatus(order?.status);
-      setPreviewVisible(false)
-      setPreviewContent("")
+      setPreviewVisible(false);
+      setPreviewContent("");
     }
   }, [visible, order?.id]);
 
+  useEffect(() => {
+    if (order?.status === orderStatus.PREPARING) {
+      fetchDeliveryBoys();
+    }
+  }, [order?.id]);
+
+  const sendNotification = async (to: string, message: any) => {
+    if (AdminEuid && savedSocket) {
+      savedSocket.emit("send_message", {
+        to,
+        from: AdminEuid,
+        message,
+      });
+      console.log(`📤 Message sent from ${AdminEuid} to ${to}:`, message);
+    }
+  };
 
   const updateStatus = async (oid: number, euid: string, status: string) => {
     setLoading(true);
     try {
-      // await axios.post(`${BaseUrl}user/updateOrderStatus`, {
-      //   oid,
-      //   euid,
-      //   status,
-      // });
-      // setUpdatedStatus(status);
-      // onStatusUpdate(oid, status);
+      const payload = {
+        oid,
+        euid,
+        status,
+        ...(selectedDBoy && status === orderStatus.DISPATCHED
+          ? { deliveryBoy: selectedDBoy }
+          : {}),
+      };
 
-      await sendSilentData(
-        order.etoken,
-        { 
-          refresh: "userOrderUpdate",
-          orderObj: {
-            orderID: order.id,
-            newStatus: status
-          }
-        }
+      const response = await axios.post(
+        `${BaseUrl}user/updateOrderStatus`,
+        payload
       );
 
+      setUpdatedStatus(status);
+      onStatusUpdate(oid, status);
+      sendNotification(euid, {
+        for: "User",
+        orderID: oid.toString(),
+        status: status,
+      });
+      if (selectedDBoy && status === orderStatus.DISPATCHED) {
+        sendNotification(selectedDBoy, {
+          for: "DeliveryBoy",
+          orderID: oid.toString(),
+          status: status,
+        });
+      }
 
-
+      if (status === orderStatus.PREPARING) {
+        fetchDeliveryBoys();
+      }
     } catch (err) {
       Alert.alert("Error", "Failed to update status.");
     }
     setLoading(false);
   };
+
   const shareLocationToWhatsApp = () => {
-    let whatsappUrl=""
+    let whatsappUrl = "";
     if (order.latlong) {
       const parsedLatLong = JSON.parse(order.latlong);
       const googleMapsUrl = `https://www.google.com/maps?q=${parsedLatLong.latitude},${parsedLatLong.longitude}`;
@@ -98,6 +138,23 @@ export const OrderDetailBox: React.FC<OrderDetailBoxProps> = ({
     });
   };
 
+  const fetchDeliveryBoys = async () => {
+    setDeliveryBoysLoading(true);
+    try {
+      const response = await axios.get(`${BaseUrl}user/getUsers`, {
+        params: {
+          euid: AdminEuid,
+          role: "deliveryBoy",
+        },
+      });
+      setDeliveryBoys(response.data || []);
+      setSelectedDBoy(response.data[0]["euid"]);
+    } catch (error) {
+      console.error("Failed to fetch users", error);
+      Alert.alert("Error", "Unable to fetch delivery boys,Try Again");
+    }
+    setDeliveryBoysLoading(false);
+  };
 
   const handlePrintPress = () => {
     const items = JSON.parse(order.description);
@@ -212,7 +269,7 @@ Final Amount: ${finalAmount}
                       {
                         text: "Approve",
                         onPress: () =>
-                          updateStatus(order.id, AdminEuid, "Preparing"),
+                          updateStatus(order.id, order.euid, "Preparing"),
                       },
                     ])
                   }
@@ -232,7 +289,7 @@ Final Amount: ${finalAmount}
                       {
                         text: "Decline",
                         onPress: () =>
-                          updateStatus(order.id, AdminEuid, "Declined"),
+                          updateStatus(order.id, order.euid, "Declined"),
                       },
                     ])
                   }
@@ -242,27 +299,66 @@ Final Amount: ${finalAmount}
               </>
             )}
             {updatedStatus === "Preparing" && (
-              <>
+              <View style={styles.verticalContainer}>
+                {deliveryBoysLoading ? (
+                  <ActivityIndicator color="#FC8019" size="small" />
+                ) : (
+                  <View
+                    style={{
+                      marginVertical: 10,
+                      backgroundColor: "#fff",
+                      borderRadius: 6,
+                    }}
+                  >
+                    <Text style={{ marginBottom: 4 }}>
+                      Assign Delivery Boy:
+                    </Text>
+                    <View
+                      style={{
+                        borderWidth: 1,
+                        borderColor: "#ccc",
+                        borderRadius: 4,
+                      }}
+                    >
+                      <Picker
+                        selectedValue={selectedDBoy}
+                        mode="dropdown"
+                        onValueChange={(itemValue, itemIndex) =>
+                          setSelectedDBoy(itemValue)
+                        }
+                        style={{ height: 50, width: "100%" }}
+                      >
+                        {deliveryBoys.map((obj: any) => (
+                          <Picker.Item
+                            label={obj.name}
+                            value={obj.euid}
+                            key={obj.euid}
+                          />
+                        ))}
+                      </Picker>
+                    </View>
+                  </View>
+                )}
+
                 <TouchableOpacity
                   style={[
-                    styles.actionButton,
-                    { backgroundColor: "#4CAF50", opacity: loading ? 0.6 : 1 },
+                    styles.actionButtonFull,
+                    { backgroundColor: "#4CAF50" },
                   ]}
-                  disabled={loading}
                   onPress={() =>
                     Alert.alert("Confirm Dispatch", "Dispatch this order?", [
                       { text: "Cancel", style: "cancel" },
                       {
                         text: "Dispatch",
                         onPress: () =>
-                          updateStatus(order.id, AdminEuid, "Dispatched"),
+                          updateStatus(order.id, order.euid, "Dispatched"),
                       },
                     ])
                   }
                 >
                   <Text style={styles.actionButtonText}>Dispatch</Text>
                 </TouchableOpacity>
-              </>
+              </View>
             )}
           </View>
         )}
@@ -280,6 +376,35 @@ Final Amount: ${finalAmount}
 export default OrderDetailBox;
 
 const styles = StyleSheet.create({
+  verticalContainer: {
+    width: "100%",
+    marginTop: 10,
+  },
+  actionButtonFull: {
+    width: "100%",
+    paddingVertical: 10,
+    borderRadius: 6,
+    alignItems: "center",
+    marginTop: 10,
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 10,
+  },
+  DBoyscontainer: {
+    paddingHorizontal: 10,
+  },
+  DBoyslabel: {
+    fontSize: 16,
+    marginRight: 10,
+    minWidth: 130,
+  },
+  picker: {
+    flex: 1,
+    height: 40,
+  },
+
   orderHeader: {
     flexDirection: "row",
     alignItems: "center",

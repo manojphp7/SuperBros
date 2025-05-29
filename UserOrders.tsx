@@ -22,6 +22,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "./helpers/navigation";
 import NotificationHandler from "./NotificationHandler";
+import Header from "./Header";
 
 
 
@@ -85,6 +86,7 @@ const UserOrders = () => {
 
     return (
       <View style={styles.orderCard}>
+        <TouchableOpacity onPress={() => navigation.navigate('OrderDetails', { orderID: item.id })}>
         <View style={styles.rowBetween}>
           <Text style={styles.orderId}>Order #{item.id}</Text>
           <View style={styles.statusContainer}>
@@ -138,7 +140,7 @@ const UserOrders = () => {
             </Text>
           </View>
         ))}
-        
+        </TouchableOpacity>
       </View>
 
 
@@ -151,27 +153,7 @@ const UserOrders = () => {
       <PaperProvider theme={theme}>
         <View style={styles.screen}>
           {/* Header */}
-          <View style={styles.header}>
-            {navigation.canGoBack() ? (
-              <TouchableOpacity
-                onPress={() => navigation.goBack()}
-                style={styles.backButton}
-              >
-                <Icon name="chevron-back" size={28} color="#333" />
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.backButtonPlaceholder} />
-            )}
-  
-            <Text style={styles.headerTitle}>Your Orders</Text>
-  
-            <TouchableOpacity
-              style={styles.profileContainer}
-              onPress={() => navigation.navigate("Profile")}
-            >
-              <Icon name="person-circle-outline" size={28} color="#333" />
-            </TouchableOpacity>
-          </View>
+              <Header isBack={true} title="Orders"/>
   
           {/* Content */}
           {loading ? (
